@@ -13,8 +13,9 @@ separate setup per tool. Three pieces carry that:
 - **`AGENTS.md`** is the router — where every agent starts.
 - **`.agents/`** holds *how to do things* — narrow skills and the
   sub-agents that compose them.
-- **`.agents_memory/`** holds *what's currently true* — state layered by
-  how long it stays true.
+- **`.agents_memory/`** holds *the plan and where execution stands against
+  it* — the master plan, the slice currently in focus, and the checklist
+  executing that slice.
 
 Principle: maintain **one neutral source of truth** for all three, and let
 each tool's native format (Claude's YAML frontmatter, Copilot's
@@ -37,9 +38,9 @@ AGENTS.md                     # thin router — entry point for any agent
         ├── AGENT.md          # role-specialized sub-agent spec (name, description, tools, model)
         └── reference/        # optional, loaded on demand — schemas, long examples, docs
 .agents_memory/
-├── agents_scratchpad.md      # ephemeral, in-progress state
-├── active_memory.md          # current, fast-changing project state
-└── passive_memory.md         # durable, slow-changing knowledge
+├── scratchpad.md      # task planning/checklist for the active slice
+├── active_memory.md   # the one plan slice currently in focus
+└── passive_memory/    # the highly-defined master plan
 ```
 
 Per-tool native formats (Claude Code frontmatter, Copilot instructions,
@@ -116,37 +117,64 @@ split:
 Core principle: be honest about where a target tool is weaker rather than
 pretending equivalence.
 
-## 4. `.agents_memory/` — three-layer split
+## 4. `.agents_memory/` — plan decomposition, not durability
 
-Partitioned by how long information should live and who/what writes to it:
+Partitioned by *plan granularity*, top-down: one master plan, one active
+slice of it, one execution checklist for that slice. Not partitioned by how
+long a fact stays true — each layer is a zoom level on the same plan.
 
-### `agents_scratchpad.md`
-- **What goes here**: ephemeral, in-progress state — current task
-  breakdown, intermediate findings, half-finished notes, anything only
-  useful for the task actively running.
-- **Lifecycle**: cleared or overwritten freely between tasks; not expected
-  to survive a session boundary.
-- **Written by**: the active agent, continuously during a task.
+### `passive_memory/`
+- **What goes here**: the highly-defined plan itself — the full breakdown
+  of the project/initiative into phases or milestones, with rationale.
+  This is the one durable artifact; everything else derives from it.
+- **Structure**: a folder, partitioned by lifecycle stage:
+  ```
+  passive_memory/
+  ├── draft/     # proposed phases/milestones — not yet committed to
+  ├── current/   # active, authoritative
+  └── archived/  # superseded or abandoned — kept for history
+  ```
+  One file per phase/milestone within each stage, split further as the
+  plan grows.
+- **Lifecycle**: long-lived; a phase moves `draft/` → `current/` when
+  committed to, and `current/` → `archived/` when re-scoped or abandoned.
+  Files move unedited (`git mv`) — a stage change is a location change,
+  not a content edit. Content is only edited while still in `draft/`.
+- **Written by**: any agent, but sparingly, and only to revise the plan
+  itself, not to log work against it.
 
 ### `active_memory.md`
-- **What goes here**: current project state that changes often but matters
-  right now — open work items, in-flight decisions, who's doing what,
-  known bugs being tracked, current constraints/deadlines.
-- **Lifecycle**: reviewed/updated at the start or end of a session; entries
-  get promoted to passive memory once resolved, or dropped once stale.
-- **Written by**: the active agent, at natural checkpoints (task completion,
-  session end) — not on every tool call.
+- **What goes here**: the *specific slice* of the plan currently being
+  executed — one phase/milestone pulled out of `passive_memory/` into
+  focus right now, plus any decisions made while executing it. A single
+  file, not a folder: only one slice is ever in focus at a time, so there's
+  nothing to partition.
+- **Structure**: opens with a link back to its source section in
+  `passive_memory/` and a status line, then the slice content, e.g.:
+  ```markdown
+  # Phase 2: <name>
+  Plan: [passive_memory/current/02_<name>.md](passive_memory/current/02_<name>.md) — status: in focus
+  ```
+  It doubles as the tracker between plan and execution this way — status
+  lives next to the content it's tracking, not in a separate file that can
+  drift out of sync.
+- **Lifecycle**: overwritten (pulled from `passive_memory/`, with the link
+  and `in focus` status) when a new phase starts; status flips to `done`
+  right before the next phase overwrites it — `git log` on the file is the
+  history if it's needed. If the work changed the plan, update
+  `passive_memory/` too.
+- **Written by**: the active agent, when starting, updating, or finishing
+  the current slice.
 
-### `passive_memory.md`
-- **What goes here**: durable, slow-changing knowledge — user
-  preferences/feedback ("don't do X", "always do Y"), architectural
-  decisions and their rationale, stable reference pointers (where bugs are
-  tracked, which dashboard matters). Not derivable by re-reading the code.
-- **Lifecycle**: long-lived; updated rarely, only on explicit correction/
-  confirmation or a settled architectural decision.
-- **Written by**: any agent, but sparingly — this is the layer future
-  sessions rely on to avoid re-litigating settled questions.
+### `scratchpad.md`
+- **What goes here**: the agent's own working-around space for the task at
+  hand — task planning, a checklist derived from `active_memory.md`, a
+  clean stated goal, intermediate findings, half-finished notes.
+- **Lifecycle**: cleared or overwritten freely per task; never expected to
+  survive past the slice it was built for.
+- **Written by**: the active agent, continuously during execution.
 
-**Split rule of thumb**: if it will be wrong an hour from now, it's
-scratchpad. If it will be wrong next week, it's active. If it's still true
-next quarter, it's passive.
+**Flow**: `passive_memory/` (the plan) → `active_memory.md` (the current
+slice, linked back to its plan section with status inline) →
+`scratchpad.md` (task planning/checklist executing that slice).
+Work moves top-down; nothing is promoted bottom-up except plan revisions.

@@ -37,6 +37,39 @@ validate it — don't explore live via trial-and-error execution.
 2. **Sequential Numbering:** Documents that follow a logical flow or priority should be prefixed with a 2-digit number (e.g., `01_strategy_plan.md`, `02_execution.md`).
 3. **Descriptive Names:** File names should be immediately descriptive of their content without needing to open them. No generic names (except `README.md`).
 
+## Using `.agents_memory`
+
+Top-down flow, not a durability split: `passive_memory/` (the plan) →
+`active_memory.md` (today's slice of it) → `scratchpad.md` (task
+planning/checklist executing that slice). Nothing is promoted bottom-up
+except a revision to the plan itself.
+
+- **`passive_memory/{draft,current,archived}/`:** the highly-defined plan,
+  one file per phase/milestone with rationale, partitioned by lifecycle
+  stage. Propose new phases into `draft/`; a phase moves to `current/`
+  once committed to, and to `archived/` once re-scoped or abandoned.
+  Files move (`git mv`), not edited-in-place across a stage change —
+  content is only edited while still in `draft/`.
+- **`active_memory.md`:** a single file — only one slice is ever in focus
+  at a time. It opens with a markdown link back to its source section in
+  `passive_memory/current/` and a status line (`in focus`, `done` right
+  before overwrite), so it doubles as the tracker between plan and
+  execution without a separate status file. Overwrite it when a phase
+  starts, update while working it, flip status to `done` right before the
+  next phase replaces it (`git log` on the file is the history) — if the
+  work changed the plan, update `passive_memory/` instead of leaving a
+  stale copy here.
+- **`scratchpad.md`:** the agent's own space for task
+  planning/checklists while executing the slice in `active_memory.md` — a
+  clean stated goal, the checklist, intermediate notes. Not read as a
+  source of truth by other agents/sessions; never link to it as the
+  authority for a decision. Cleared freely between tasks.
+- **Check before writing:** read `passive_memory/current/` before adding a
+  new plan section, and `active_memory.md` before overwriting it with a
+  new slice — don't lose in-progress state.
+- Full layer definitions and lifecycle: see
+  [01_seed_agentic_env.md §4](01_seed_agentic_env.md#4-agents_memory--plan-decomposition-not-durability).
+
 ## Agent Behavior & Communication Rules
 
 - **Low Cognitive Load (Hard Rule):** All generations (chat, files, docs) must minimize cognitive load. Use bullet points, tables, and short pointers. strictly avoid long paragraphs. Maximize information density with few words.
